@@ -6,9 +6,9 @@ from utilities.generate_card_data import generate_card_data
 from utilities.html_creator import htmlCreator
 from dotenv import load_dotenv
 from utilities import utils
+from utilities import analyser
 import time
 import inspect
-import time
 import asyncio
 import requests
 
@@ -303,6 +303,12 @@ class Bot(commands.Bot):
         img = discord.File('resources/images/e12p2_adv_rel.png')
         await ctx.reply("", file=img)
 
+    @commands.command(hidden=True)
+    async def get_guild(ctx):
+        """returns the name of the guild this command was used in"""
+        current_guild = str(ctx.guild)
+        await ctx.reply(current_guild)
+
     @commands.command(name="wingo", hidden=True)
     # Stop snooping on my code >:(
     # new cowwand owo
@@ -330,34 +336,26 @@ class Bot(commands.Bot):
         if api_key is None:
             await ctx.send("Command is not currently configured on")
             return
-        results = utils.analyze_tea_fight(report_id, api_key)
+        message = analyser.analyse_tea_fight(report_id, api_key)
 
-        if results is None:
+        if message is None:
             await ctx.send("No TEA fights found")
             return
-        best_fight = results["best_fight"]
-        best_fight_time = time.strftime('%M:%S', time.gmtime(best_fight["length"]))
-        active_time = time.strftime('%H:%M:%S', time.gmtime(results["active_time"]))
-        total = results["total"]
+        await ctx.send(message)
 
-        def phase_format(phase_id):
-            phase_count = results[f"phase{phase_id}"]
-            if phase_count == 0:
-                return phase_count
-            return f"{phase_count} ({phase_count/total*100:.1f}%)"
+    @commands.command()
+    async def uwunalyse(ctx, *, report_id):
+        """Gives statistics on FF logs reports from the Weapon's Refrain (Ultimate). Requires log URL"""
+        api_key = os.getenv('FFLOGS_API_KEY')
+        if api_key is None:
+            await ctx.send("Command is not currently configured on")
+            return
+        message = analyser.analyse_uwu_fight(report_id, api_key)
 
-        await ctx.send(f"""```
-Total:   {total}
-Phase 1: {phase_format(1)}
-Phase 2: {phase_format(2)}
-Phase 3: {phase_format(3)}
-Phase 4: {phase_format(4)}
-Active time: {active_time}
-Embolus wipes: {results["embolus_wipes"]}
-
-Best #{best_fight["id"]} {best_fight_time} (higher % the better)
-Fight prog: {best_fight["fightPercentage"]:.2f}%
-Phase prog: {best_fight["currentPhaseProg"]:.2f}%```""")
+        if message is None:
+            await ctx.send("No UWU fights found")
+            return
+        await ctx.send(message)
 
     if "SPOTIPY_CLIENT_ID" and "SPOTIPY_CLIENT_SECRET" in os.environ:
         @commands.command()
@@ -370,9 +368,13 @@ Phase prog: {best_fight["currentPhaseProg"]:.2f}%```""")
         @commands.command()
         async def ai(ctx, *, new_prompt):
             """Get a real AI response from BingoBot!"""
-            author = str(ctx.message.author).split('#')[0]
-            response = get_ai_response(new_prompt, author)
-            await ctx.reply(response)
+
+            if str(ctx.guild) in os.getenv('GUILD_WHITELIST'):
+                author = str(ctx.message.author).split('#')[0]
+                response = get_ai_response(new_prompt, author)
+                await ctx.reply(response)
+            else:
+                await ctx.reply("Sorry, this guild is not authorised to use the AI function.")
 
     async def on_message(self, message):
         """Called every time a message is received. Checks if the server is new, if so folders and lists are created"""
